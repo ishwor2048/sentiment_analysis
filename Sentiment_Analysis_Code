@@ -1,0 +1,186 @@
+# Importing required libraries and modules initially since we don't miss any libraries to import so that we are safe from errors
+# Basic dataframe, numerical and visualization libraries
+import pandas as pd 
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Importing NLTK library for NLP
+import nltk
+
+# Importing test train split module to split data into training and test set
+from sklearn.model_selection import train_test_split
+
+# Importing stopwords to identify and stopword treatment (mostly remove)
+from nltk.corpus import stopwords
+
+# Importing confusion matrix and accuracy score to evaluate the model performance
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import accuracy_score
+
+# Importing Tfidf vectorizer in order to evaluate the importance of particular word in document
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+# Importing Stochastic Gradient Descent Classifier to perform batch gradient descent
+from sklearn.linear_model import SGDClassifier
+
+# Importing prescision, recall and classification report
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
+from sklearn.metrics import classification_report
+
+# Note: This dataset is taken as twitter data, I have used data originally taken from organization. Due to company data
+# Protection reason, I have not used the original data here.
+
+# initialize the data
+test_data = 'twitter_test.csv'
+train_data = 'twitter_train.csv'
+
+# Let's read the file now, note that in this file, I had to run ISO-8859-1 encoding system
+test = pd.read_csv(test_data, index_col=0, encoding="ISO-8859-1")
+train = pd.read_csv(train_data, index_col='ItemID', encoding="ISO-8859-1")
+
+# checking the top 10 values from train and test set
+test.head(10)
+train.head(10)
+
+# =============================================================================
+
+#Amazon Data
+train.columns = ['class','sentiment_text']
+
+#Total Count of Each Category
+pd.set_option('display.width', 4000)
+pd.set_option('display.max_rows', 1000)
+distOfDetails = train.groupby(by='class', as_index=False).agg({'sentiment_text': pd.Series.nunique}).sort_values(by='sentiment_text', ascending=False)
+distOfDetails.columns =['class', 'COUNT']
+print(distOfDetails)
+
+# =============================================================================
+
+#Distribution of All Categories
+plt.pie(distOfDetails['COUNT'],autopct='%1.0f%%',shadow=True, startangle=360)
+plt.show()
+
+# Importing and downloading stopwords
+nltk.download('stopwords')
+
+#Text Preprocessing
+# Setting up organized columns
+columns = ['index','Class', 'Sentiment_Text']
+
+df_ = pd.DataFrame(columns=columns)
+
+# Performing data (text) cleaning process:
+
+#lower string
+train['sentiment_text'] = train['sentiment_text'].str.lower()
+#remove email adress
+train['sentiment_text'] = train['sentiment_text'].replace('[a-zA-Z0-9-_.]+@[a-zA-Z0-9-_.]+', '', regex=True)
+#remove IP address
+train['sentiment_text'] = train['sentiment_text'].replace('((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(\.|$)){4}', '', regex=True)
+#remove punctaitions and special chracters
+train['sentiment_text'] = train['sentiment_text'].str.replace('[^\w\s]','')
+#remove numbers
+train['sentiment_text'] = train['sentiment_text'].replace('\d', '', regex=True)
+#remove stop words
+filtered_words = [word for word in 'sentiment_text' if word not in stopwords.words('english')]
+
+# =============================================================================
+
+# Creating pie chart with the counting of the values of the 
+train['sentiment_text'].value_counts().plot(kind='pie', autopct='%1.0f%%')  
+plt.show()
+
+# =============================================================================
+
+# Making train test split of the data and defining the class
+X_train, X_test, y_train, y_test = train_test_split(train['sentiment_text'].values.astype('U'),train['class'].values.astype('int32'), test_size=0.10, random_state=0)
+classes  = train['class'].unique()
+
+
+############################ grid search result ###############################
+
+# Initiating Tfidf vectorizer
+vectorizer = TfidfVectorizer(analyzer='word',ngram_range=(1,2), max_features=50000,max_df=0.5,use_idf=True, norm='l2') 
+
+# Fitting the training data into vectorizer
+counts = vectorizer.fit_transform(X_train)
+
+# Initiating the vocabulary
+vocab = vectorizer.vocabulary_
+
+# Initializing classifier
+classifier = SGDClassifier(alpha=1e-05,max_iter=50,penalty='elasticnet')
+targets = y_train
+
+# Setting up classifier
+classifier = classifier.fit(counts, targets)
+
+# Vectorizing the sentiment
+example_counts = vectorizer.transform(X_test)
+
+# predicting with the classifier
+predictions = classifier.predict(example_counts)
+
+# =============================================================================
+
+#Model Evaluation with the accuracy testing, and classification report
+acc = accuracy_score(y_test, predictions, normalize=True)
+hit = precision_score(y_test, predictions, average=None,labels=classes)
+capture = recall_score(y_test, predictions, average=None,labels=classes)
+print('Model Accuracy:%.2f'%acc)
+print(classification_report(y_test, predictions))
+
+# =============================================================================
+
+# Iterating on corpus while building up confusion matrix
+import itertools
+def plot_confusion_matrix(cm, classes,
+                          normalize=False,
+                          title='Confusion matrix',
+                          cmap=plt.cm.Blues):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        #print("Normalized confusion matrix")
+    else:
+        print()
+        
+    plt.imshow(cm, interpolation='nearest', cmap=cmap, aspect='auto')
+    plt.title(title)
+    plt.colorbar()
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=45)
+    plt.yticks(tick_marks, classes)
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        plt.text(j, i, format(cm[i, j], fmt),
+                 horizontalalignment="center",
+                 color="white" if cm[i, j] > thresh else "black")
+        
+    plt.tight_layout()
+    plt.ylabel('True label')
+    plt.xlabel('Predicted label')
+    plt.figure(figsize=(150,100))
+    plt.show()
+    
+# =============================================================================
+
+# Compute confusion matrix
+cnf_matrix = confusion_matrix(y_test, predictions,classes)
+np.set_printoptions(precision=2)
+class_names = range(1,classes.size+1)
+
+# Plot non-normalized confusion matrix
+plt.figure()
+plot_confusion_matrix(cnf_matrix, classes=class_names,title='Confusion matrix, without normalization')
+classInfo = pd.DataFrame(data=[])
+for i in range(0,classes.size):
+    classInfo = classInfo.append([[classes[i],i+1]],ignore_index=True)
+classInfo.columns=['Category','Index']
+
+classInfo
