@@ -2,3 +2,5 @@
 This project gives you brief idea about how the data project was created and utilized in the organization. I haven't included the deployment code here, but include comment below if you have any doubt to be clarified. 
 
 This code is more about building customer sentiment analysis which helps to understand what was the major reason that customers were dissatisfied with the services offered by the organization, and going to other competitors providing similar services. 
+
+This analysis and project was done in python, so I most preferably suggest to use Spyder Interface to run these code for successful run.
